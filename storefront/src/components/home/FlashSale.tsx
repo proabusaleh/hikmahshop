@@ -4,20 +4,15 @@ import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Zap, ArrowRight } from 'lucide-react';
 import ProductCard from '@/components/shared/ProductCard';
+import api from '@/lib/api';
+import { toCardProduct } from '@/lib/products';
+import type { ApiProduct, CardProduct } from '@/lib/products';
 
-const flashProducts = [
-  { id: 1, name: 'Wireless Earbuds Pro', price: 1299, originalPrice: 2499, image: '/products/earbuds.jpg', rating: 4.5, sold: 85 },
-  { id: 2, name: 'Smart Watch Ultra', price: 3499, originalPrice: 6999, image: '/products/watch.jpg', rating: 4.7, sold: 72 },
-  { id: 3, name: 'Running Shoes X1', price: 1899, originalPrice: 3200, image: '/products/shoes.jpg', rating: 4.3, sold: 91 },
-  { id: 4, name: 'Backpack Voyager', price: 899, originalPrice: 1599, image: '/products/backpack.jpg', rating: 4.6, sold: 64 },
-  { id: 5, name: 'Bluetooth Speaker', price: 799, originalPrice: 1499, image: '/products/speaker.jpg', rating: 4.4, sold: 78 },
-];
-
-function useCountdown(targetHours: number) {
+function useFlashCountdown(endsAt?: string) {
   const [time, setTime] = useState({ h: 0, m: 0, s: 0 });
 
   useEffect(() => {
-    const end = Date.now() + targetHours * 3600000;
+    const end = endsAt ? new Date(endsAt).getTime() : Date.now() + 8 * 3600000;
     const tick = () => {
       const diff = Math.max(0, end - Date.now());
       setTime({
@@ -29,13 +24,36 @@ function useCountdown(targetHours: number) {
     tick();
     const id = setInterval(tick, 1000);
     return () => clearInterval(id);
-  }, [targetHours]);
+  }, [endsAt]);
 
   return time;
 }
 
 export default function FlashSale() {
-  const countdown = useCountdown(8);
+  const [products, setProducts] = useState<CardProduct[]>([]);
+  const [flashEnd, setFlashEnd] = useState<string | undefined>(undefined);
+  const countdown = useFlashCountdown(flashEnd);
+
+  useEffect(() => {
+    api
+      .get('/products', { params: { flash_sale: 1, per_page: 5 } })
+      .then(({ data }) => {
+        const list: ApiProduct[] = data.data ?? [];
+        if (!list.length) return;
+        setProducts(list.map(toCardProduct));
+        const ends = list
+          .map((p) => p.flash_end)
+          .filter(Boolean)
+          .map((e) => new Date(e as string).getTime());
+        if (ends.length) {
+          const nearest = Math.min(...ends);
+          setFlashEnd(new Date(nearest).toISOString());
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  if (!products.length) return null;
 
   return (
     <section className="py-16 bg-white">
@@ -70,7 +88,7 @@ export default function FlashSale() {
           </div>
 
           <a
-            href="/deals"
+            href="/shop?flash_sale=1"
             className="inline-flex items-center gap-1 text-brand-600 font-semibold hover:text-brand-700 transition"
           >
             View All Deals <ArrowRight className="w-4 h-4" />
@@ -79,7 +97,7 @@ export default function FlashSale() {
 
         {/* Products Grid */}
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-          {flashProducts.map((product, i) => (
+          {products.map((product, i) => (
             <motion.div
               key={product.id}
               initial={{ opacity: 0, y: 20 }}

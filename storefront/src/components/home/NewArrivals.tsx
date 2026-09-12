@@ -1,21 +1,28 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Sparkles, ArrowRight } from 'lucide-react';
 import ProductCard from '@/components/shared/ProductCard';
-
-const newArrivals = [
-  { id: 30, name: 'Smart Home Hub Mini', price: 5999, image: '', rating: 4.6, isNew: true },
-  { id: 31, name: 'Linen Summer Dress', price: 1899, image: '', rating: 4.4, isNew: true },
-  { id: 32, name: 'Ceramic Plant Pot Set', price: 699, image: '', rating: 4.3, isNew: true },
-  { id: 33, name: 'Wireless Charging Pad', price: 999, originalPrice: 1499, image: '', rating: 4.5, isNew: true },
-  { id: 34, name: 'Bamboo Sunglasses', price: 599, image: '', rating: 4.2, isNew: true },
-  { id: 35, name: 'Electric Toothbrush Pro', price: 1499, image: '', rating: 4.7, isNew: true },
-  { id: 36, name: 'Canvas Tote Bag', price: 399, image: '', rating: 4.1, isNew: true },
-  { id: 37, name: 'Aromatherapy Diffuser', price: 1299, originalPrice: 1999, image: '', rating: 4.6, isNew: true },
-];
+import api from '@/lib/api';
+import { toCardProduct } from '@/lib/products';
+import type { ApiProduct, CardProduct } from '@/lib/products';
 
 export default function NewArrivals() {
+  const [products, setProducts] = useState<CardProduct[]>([]);
+
+  useEffect(() => {
+    api
+      .get('/products', { params: { new_arrival: 1, per_page: 8 } })
+      .then(({ data }) => {
+        const list: ApiProduct[] = data.data ?? [];
+        setProducts(list.map(toCardProduct));
+      })
+      .catch(() => {});
+  }, []);
+
+  if (!products.length) return null;
+
   return (
     <section className="py-16 bg-gradient-to-b from-brand-50/50 to-white">
       <div className="max-w-7xl mx-auto px-4">
@@ -34,7 +41,7 @@ export default function NewArrivals() {
             </div>
           </div>
           <a
-            href="/new-arrivals"
+            href="/shop?new_arrival=1"
             className="hidden md:inline-flex items-center gap-1 text-brand-600 font-semibold"
           >
             See All <ArrowRight className="w-4 h-4" />
@@ -42,7 +49,7 @@ export default function NewArrivals() {
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6">
-          {newArrivals.map((product, i) => (
+          {products.map((product, i) => (
             <motion.div
               key={product.id}
               initial={{ opacity: 0, scale: 0.95 }}

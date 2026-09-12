@@ -16,10 +16,14 @@ use App\Http\Controllers\Api\V1\AnalyticsController;
 use App\Http\Controllers\Api\V1\InventoryController;
 use App\Http\Controllers\Api\V1\BlogController;
 use App\Http\Controllers\Api\V1\CmsController;
+use App\Http\Controllers\Api\V1\ProductController;
+use App\Http\Controllers\Api\V1\CategoryController;
 
 // ── Public ──
 Route::post('/auth/register', [AuthController::class, 'register']);
 Route::post('/auth/login',    [AuthController::class, 'login']);
+Route::post('/auth/forgot-password', [AuthController::class, 'forgotPassword']);
+Route::post('/auth/reset-password',  [AuthController::class, 'resetPassword']);
 
 // ── Search (Public) ──
 Route::get('/search',              [SearchController::class, 'search']);
@@ -28,6 +32,13 @@ Route::get('/search/popular',      [SearchController::class, 'popular']);
 
 // ── Reviews (Public) ──
 Route::get('/products/{productId}/reviews', [ReviewController::class, 'index']);
+
+// ── Catalog (Public) ──
+Route::get('/categories',                [CategoryController::class, 'index']);
+Route::get('/categories/{slug}',         [CategoryController::class, 'show']);
+Route::get('/products',                  [ProductController::class, 'index']);
+Route::get('/products/{id}/related',     [ProductController::class, 'related']);
+Route::get('/products/{id}',             [ProductController::class, 'show']);
 
 // ── Protected ──
 Route::middleware('auth:sanctum')->group(function () {

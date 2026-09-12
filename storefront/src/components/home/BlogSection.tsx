@@ -1,30 +1,35 @@
-import { ArrowRight, Clock } from 'lucide-react';
+'use client';
 
-const posts = [
-  {
-    title: '10 Must-Have Gadgets for 2025',
-    excerpt: 'Discover the latest tech that will transform your daily life...',
-    date: 'Jan 15, 2025',
-    readTime: '5 min',
-    category: 'Tech',
-  },
-  {
-    title: 'Summer Fashion Guide: Stay Cool & Stylish',
-    excerpt: 'Expert tips on building the perfect summer wardrobe...',
-    date: 'Jan 12, 2025',
-    readTime: '4 min',
-    category: 'Fashion',
-  },
-  {
-    title: 'How to Save More with HikmahShop Deals',
-    excerpt: 'A complete guide to maximizing your savings on every order...',
-    date: 'Jan 10, 2025',
-    readTime: '3 min',
-    category: 'Tips',
-  },
-];
+import { useEffect, useState } from 'react';
+import { ArrowRight, Clock } from 'lucide-react';
+import Link from 'next/link';
+import api from '@/lib/api';
+
+interface BlogPostCard {
+  title: string;
+  slug: string;
+  excerpt: string;
+  featured_image?: string | null;
+  published_at?: string | null;
+  read_time?: number;
+  category?: { name: string } | null;
+}
 
 export default function BlogSection() {
+  const [posts, setPosts] = useState<BlogPostCard[]>([]);
+
+  useEffect(() => {
+    api
+      .get('/blog', { params: { per_page: 12 } })
+      .then(({ data }) => {
+        const list: BlogPostCard[] = data.data?.data ?? data.data ?? [];
+        setPosts(list.slice(0, 3));
+      })
+      .catch(() => {});
+  }, []);
+
+  if (!posts.length) return null;
+
   return (
     <section className="py-16 bg-white">
       <div className="max-w-7xl mx-auto px-4">
@@ -35,15 +40,16 @@ export default function BlogSection() {
             </h2>
             <p className="text-gray-500 mt-1">Tips, guides & inspiration</p>
           </div>
-          <a href="/blog" className="hidden md:inline-flex items-center gap-1 text-brand-600 font-semibold">
+          <Link href="/blog" className="hidden md:inline-flex items-center gap-1 text-brand-600 font-semibold">
             Read More <ArrowRight className="w-4 h-4" />
-          </a>
+          </Link>
         </div>
 
         <div className="grid md:grid-cols-3 gap-6">
           {posts.map((post) => (
-            <article
-              key={post.title}
+            <Link
+              key={post.slug}
+              href={`/blog/${post.slug}`}
               className="group bg-gray-50 rounded-2xl overflow-hidden border border-gray-100 hover:shadow-lg transition-all hover:-translate-y-1"
             >
               <div className="h-48 bg-gradient-to-br from-brand-100 to-brand-200 flex items-center justify-center">
@@ -51,7 +57,7 @@ export default function BlogSection() {
               </div>
               <div className="p-5">
                 <span className="text-xs font-semibold text-brand-600 bg-brand-50 px-2 py-1 rounded-full">
-                  {post.category}
+                  {post.category?.name ?? 'Blog'}
                 </span>
                 <h3 className="mt-3 text-lg font-bold text-navy-800 group-hover:text-brand-600 transition line-clamp-2">
                   {post.title}
@@ -60,13 +66,23 @@ export default function BlogSection() {
                   {post.excerpt}
                 </p>
                 <div className="flex items-center gap-3 mt-4 text-xs text-gray-400">
-                  <span>{post.date}</span>
-                  <span className="flex items-center gap-1">
-                    <Clock className="w-3 h-3" /> {post.readTime}
-                  </span>
+                  {post.published_at && (
+                    <span>
+                      {new Date(post.published_at).toLocaleDateString('en-GB', {
+                        day: 'numeric',
+                        month: 'short',
+                        year: 'numeric',
+                      })}
+                    </span>
+                  )}
+                  {post.read_time && (
+                    <span className="flex items-center gap-1">
+                      <Clock className="w-3 h-3" /> {post.read_time} min
+                    </span>
+                  )}
                 </div>
               </div>
-            </article>
+            </Link>
           ))}
         </div>
       </div>

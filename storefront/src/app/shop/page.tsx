@@ -1,6 +1,8 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
+import { useSearchParams } from 'next/navigation';
+import { Suspense } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   SlidersHorizontal,
@@ -11,28 +13,13 @@ import {
   X,
   Star,
   Search,
+  Loader2,
 } from 'lucide-react';
 import ProductCard from '@/components/shared/ProductCard';
+import api from '@/lib/api';
+import { toCardProduct } from '@/lib/products';
+import type { ApiProduct, CardProduct } from '@/lib/products';
 
-const ALL_PRODUCTS = Array.from({ length: 48 }, (_, i) => ({
-  id: i + 100,
-  name: [
-    'Wireless Bluetooth Earbuds', 'Smart Watch Pro', 'Cotton T-Shirt',
-    'Running Shoes X1', 'LED Desk Lamp', 'Organic Face Cream',
-    'Mechanical Keyboard', 'Yoga Mat Premium', 'Power Bank 20000mAh',
-    'Denim Jacket', 'Air Purifier HEPA', 'Stainless Steel Bottle',
-  ][i % 12],
-  price: [1299, 3499, 599, 1899, 1299, 899, 3299, 799, 1599, 2199, 8999, 399][i % 12],
-  originalPrice: i % 3 === 0 ? [2499, 6999, 999, 3200, 1999, 1299, 4999, 1199, 2499, 3500, 12999, 699][i % 12] : undefined,
-  image: '',
-  rating: +(4 + Math.random()).toFixed(1),
-  category: ['Electronics', 'Fashion', 'Home', 'Health'][i % 4],
-  brand: ['Samsung', 'Nike', 'Xiaomi', 'Apple', 'Adidas', 'Sony'][i % 6],
-  isNew: i % 5 === 0,
-}));
-
-const CATEGORIES = ['All', 'Electronics', 'Fashion', 'Home', 'Health'];
-const BRANDS = ['Samsung', 'Nike', 'Xiaomi', 'Apple', 'Adidas', 'Sony'];
 const PRICE_RANGES = [
   { label: 'Under ৳500', min: 0, max: 500 },
   { label: '৳500 – ৳1,000', min: 500, max: 1000 },
@@ -43,14 +30,15 @@ const PRICE_RANGES = [
 const SORT_OPTIONS = [
   { value: 'popular', label: 'Most Popular' },
   { value: 'newest', label: 'Newest First' },
-  { value: 'price-asc', label: 'Price: Low to High' },
-  { value: 'price-desc', label: 'Price: High to Low' },
+  { value: 'price_asc', label: 'Price: Low to High' },
+  { value: 'price_desc', label: 'Price: High to Low' },
   { value: 'rating', label: 'Highest Rated' },
 ];
 
 const PER_PAGE = 12;
 
-export default function ShopPage() {
+function ShopContent() {
+  const searchParams = useSearchParams();
   const [view, setView] = useState<'grid' | 'list'>('grid');
   const [sort, setSort] = useState('popular');
   const [page, setPage] = useState(1);
@@ -60,22 +48,69 @@ export default function ShopPage() {
   const [selectedPrice, setSelectedPrice] = useState<number | null>(null);
   const [minRating, setMinRating] = useState(0);
 
-  const toggleBrand = (brand: string) => {
-    setSelectedBrands((prev) =>
-      prev.includes(brand) ? prev.filter((b) => b !== brand) : [...prev, brand]
-    );
-    setPage(1);
-  };
+  const [products, setProducts] = useState<CardProduct[]>([]);
+  const [categories, setCategories] = useState<string[]>(['All']);
+  const [brands, setBrands] = useState<string[]>([]);
+  const [categorySlugs, setCategorySlugs] = useState<Record<string, string>>({});
+  const [loading, setLoading] = useState(true);
+  const [total, setTotal] = useState(0);
 
+  // Apply URL-level flags (category / trending / flash_sale / etc. from home links)
+  const urlCategory = searchParams.get('category');
+  const urlFlag = searchParams.get('trending') || searchParams.get('flash_sale') || searchParams.get('new_arrival') || searchParams.get('best_seller');
+
+  useEffect(() => {
+    if (urlCategory) setSelectedCategory(urlCategory);
+  }, [urlCategory]);
+
+  useEffect(() => {
+    api.get('/categories').then(({ data }) => {
+      const list: { name: string; slug: string }[] = data.data ?? [];
+      if (list.length) {
+        setCategories(['All', ...list.map((c) => c.name)]);
+        setCategorySlugs(Object.fromEntries(list.map((c) => [c.name, c.slug])));
+      }
+    }).catch(() => {});
+    api.get('/products', { params: { per_page: 100 } }).then(({ data }) => {
+      const list: ApiProduct[] = data.data ?? [];
+      const bs = Array.from(new Set(list.map((p) => p.brand?.name).filter(Boolean) as string[]));
+      setBrands(bs);
+    }).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    setLoading(true);
+    const params: Record<string, string | number | boolean> = {
+      sort,
+      per_page: PER_PAGE,
+      page,
+    };
+
+    const requestedSlug =
+      selectedCategory === 'All'
+        ? urlCategory ?? undefined
+        : categorySlugs[selectedCategory];
+
+    if (requestedSlug) params.category = requestedSlug;
+    if (urlFlag) params[urlFlag as string] = 1;
+    if (selectedBrands.length > 0) params.brands = selectedBrands.join(',');
+
+    api
+      .get('/products', { params })
+      .then(({ data }) => {
+        setProducts((data.data ?? []).map(toCardProduct));
+        setTotal(data.meta?.total ?? data.data?.length ?? 0);
+      })
+      .catch(() => {
+        setProducts([]);
+        setTotal(0);
+      })
+      .finally(() => setLoading(false));
+  }, [selectedCategory, selectedBrands, sort, page, urlCategory, urlFlag, categorySlugs]);
+
+  // Client-side price range + rating filter (API supports them, but keep simple)
   const filtered = useMemo(() => {
-    let result = [...ALL_PRODUCTS];
-
-    if (selectedCategory !== 'All') {
-      result = result.filter((p) => p.category === selectedCategory);
-    }
-    if (selectedBrands.length > 0) {
-      result = result.filter((p) => selectedBrands.includes(p.brand));
-    }
+    let result = products;
     if (selectedPrice !== null) {
       const range = PRICE_RANGES[selectedPrice];
       result = result.filter((p) => p.price >= range.min && p.price < range.max);
@@ -83,27 +118,11 @@ export default function ShopPage() {
     if (minRating > 0) {
       result = result.filter((p) => p.rating >= minRating);
     }
-
-    switch (sort) {
-      case 'price-asc':
-        result.sort((a, b) => a.price - b.price);
-        break;
-      case 'price-desc':
-        result.sort((a, b) => b.price - a.price);
-        break;
-      case 'rating':
-        result.sort((a, b) => b.rating - a.rating);
-        break;
-      case 'newest':
-        result.sort((a, b) => (b.isNew ? 1 : 0) - (a.isNew ? 1 : 0));
-        break;
-    }
-
     return result;
-  }, [selectedCategory, selectedBrands, selectedPrice, minRating, sort]);
+  }, [products, selectedPrice, minRating]);
 
-  const totalPages = Math.ceil(filtered.length / PER_PAGE);
-  const paginated = filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE);
+  const totalPages = Math.max(1, Math.ceil(total / PER_PAGE));
+  const paginated = filtered.slice(0, PER_PAGE);
 
   const activeFilterCount =
     (selectedCategory !== 'All' ? 1 : 0) +
@@ -124,7 +143,7 @@ export default function ShopPage() {
       <div>
         <h3 className="font-bold text-navy-800 mb-3">Category</h3>
         <div className="space-y-1.5">
-          {CATEGORIES.map((cat) => (
+          {categories.map((cat) => (
             <button
               key={cat}
               onClick={() => { setSelectedCategory(cat); setPage(1); }}
@@ -164,7 +183,7 @@ export default function ShopPage() {
       <div>
         <h3 className="font-bold text-navy-800 mb-3">Brand</h3>
         <div className="space-y-1.5">
-          {BRANDS.map((brand) => (
+          {brands.map((brand) => (
             <label
               key={brand}
               className="flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer hover:bg-gray-50 text-sm"
@@ -210,6 +229,13 @@ export default function ShopPage() {
     </div>
   );
 
+  const toggleBrand = (brand: string) => {
+    setSelectedBrands((prev) =>
+      prev.includes(brand) ? prev.filter((b) => b !== brand) : [...prev, brand]
+    );
+    setPage(1);
+  };
+
   return (
     <div className="max-w-7xl mx-auto px-4 py-8">
       <nav className="text-sm text-gray-400 mb-6">
@@ -222,7 +248,7 @@ export default function ShopPage() {
         <div>
           <h1 className="text-2xl font-bold font-display text-navy-800">All Products</h1>
           <p className="text-sm text-gray-500 mt-1">
-            Showing {paginated.length} of {filtered.length} products
+            {loading ? 'Loading…' : `Showing ${paginated.length} of ${total} products`}
           </p>
         </div>
 
@@ -328,7 +354,12 @@ export default function ShopPage() {
         </AnimatePresence>
 
         <div className="flex-1">
-          {paginated.length === 0 ? (
+          {loading ? (
+            <div className="flex flex-col items-center py-24">
+              <Loader2 className="w-10 h-10 text-brand-500 animate-spin mb-4" />
+              <p className="text-gray-500 text-sm">Loading products…</p>
+            </div>
+          ) : paginated.length === 0 ? (
             <div className="text-center py-20">
               <Search className="w-16 h-16 text-gray-200 mx-auto mb-4" />
               <h3 className="text-xl font-bold text-navy-800">No products found</h3>
@@ -405,5 +436,13 @@ export default function ShopPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function ShopPage() {
+  return (
+    <Suspense>
+      <ShopContent />
+    </Suspense>
   );
 }

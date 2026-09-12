@@ -1,73 +1,106 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import { motion } from 'framer-motion';
 import {
   Star, Heart, ShoppingCart, Zap, Truck, Shield, RotateCcw,
-  ChevronRight, Minus, Plus, Share2, Check,
+  ChevronRight, Minus, Plus, Share2, Loader2,
 } from 'lucide-react';
 import ProductCard from '@/components/shared/ProductCard';
 import ReviewSection from '@/components/product/ReviewSection';
+import api from '@/lib/api';
+import { toCardProduct } from '@/lib/products';
+import type { ApiProduct, CardProduct } from '@/lib/products';
 
-const PRODUCT = {
-  id: 1,
-  name: 'Premium Wireless Noise-Cancelling Headphones Pro Max',
-  brand: 'SoundElite',
-  price: 4599,
-  originalPrice: 7999,
-  rating: 4.8,
-  reviewCount: 2341,
-  sold: 5600,
-  stock: 23,
-  description:
-    'Experience studio-quality sound with our flagship noise-cancelling headphones. Featuring 40mm custom drivers, adaptive ANC, and 30-hour battery life.',
-  features: [
-    'Active Noise Cancellation (ANC)',
-    '40mm Custom Titanium Drivers',
-    '30-Hour Battery Life',
-    'Bluetooth 5.3 + Multipoint',
-    'Foldable Design with Carry Case',
-    'Built-in Microphone for Calls',
-  ],
-  specs: {
-    'Driver Size': '40mm',
-    'Frequency': '20Hz – 40kHz',
-    'Impedance': '32Ω',
-    'Battery': '500mAh Li-Po',
-    'Charging': 'USB-C (Fast Charge)',
-    'Weight': '250g',
-    'Bluetooth': '5.3',
-    'Codec': 'AAC, SBC, LDAC',
-  },
-  images: ['1', '2', '3', '4', '5'],
-  colors: [
-    { name: 'Midnight Black', hex: '#1a1a2e' },
-    { name: 'Arctic White', hex: '#f0f0f0' },
-    { name: 'Navy Blue', hex: '#1e3a5f' },
-    { name: 'Rose Gold', hex: '#b76e79' },
-  ],
-};
+interface Variant {
+  id: number;
+  name: string;
+  price: number;
+  stock: number;
+  attributes: { attribute: string | null; value: string; color?: string | null }[];
+}
 
-const RELATED = Array.from({ length: 4 }, (_, i) => ({
-  id: 200 + i,
-  name: ['Earbuds Pro', 'Speaker Mini', 'Gaming Headset', 'Neckband X'][i],
-  price: [1299, 2499, 3499, 899][i],
-  originalPrice: [1999, 3999, 4999, 1299][i],
-  image: '',
-  rating: 4.5,
-}));
+interface ColorOption {
+  label: string;
+  hex: string;
+  variantId: number;
+}
 
 export default function ProductDetailPage() {
   const params = useParams();
+  const id = Number(params.id);
+
+  const [product, setProduct] = useState<ApiProduct | null>(null);
+  const [related, setRelated] = useState<CardProduct[]>([]);
   const [selectedImage, setSelectedImage] = useState(0);
-  const [selectedColor, setSelectedColor] = useState(0);
+  const [selectedVariant, setSelectedVariant] = useState<Variant | null>(null);
   const [quantity, setQuantity] = useState(1);
   const [activeTab, setActiveTab] = useState<'desc' | 'specs' | 'reviews'>('desc');
   const [liked, setLiked] = useState(false);
+  const [loading, setLoading] = useState(true);
 
-  const discount = Math.round(
-    ((PRODUCT.originalPrice - PRODUCT.price) / PRODUCT.originalPrice) * 100
+  useEffect(() => {
+    if (!id) return;
+    setLoading(true);
+    Promise.all([
+      api.get(`/products/${id}`),
+      api.get(`/products/${id}/related`),
+    ])
+      .then(([{ data: pData }, { data: rData }]) => {
+        setProduct(pData.data ?? null);
+        setRelated((rData.data ?? []).map(toCardProduct));
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [id]);
+
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center py-32">
+        <Loader2 className="w-10 h-10 text-brand-500 animate-spin mb-4" />
+        <p className="text-gray-500 text-sm">Loading product…</p>
+      </div>
+    );
+  }
+
+  if (!product) {
+    return (
+      <div className="max-w-7xl mx-auto px-4 py-32 text-center">
+        <h1 className="text-2xl font-bold text-navy-800">Product not found</h1>
+        <a href="/shop" className="mt-4 inline-block text-brand-600 font-semibold">
+          Back to Shop
+        </a>
+      </div>
+    );
+  }
+
+  const variants: Variant[] = product.variants ?? [];
+  const effectivePrice = selectedVariant?.price ?? product.price;
+  const originalPrice: number | null = product.original_price ?? null;
+  const images: { url: string; alt?: string }[] = (product.images ?? []).filter(
+    (img) => img?.url
+  );
+  const hasImages = images.length > 0;
+  const activeImage = hasImages ? images[Math.min(selectedImage, images.length - 1)] : null;
+
+  const colorOptions: ColorOption[] = variants
+    .flatMap((v) =>
+      (v.attributes ?? [])
+        .filter((a) => (a.attribute?.toLowerCase().includes('color') ?? false) && a.color)
+        .map((a) => ({ label: `${a.attribute}: ${a.value}`, hex: a.color as string, variantId: v.id }))
+    );
+
+  const discount = originalPrice
+    ? Math.round(((originalPrice - effectivePrice) / originalPrice) * 100)
+    : 0;
+
+  const selectVariant = (v: Variant) => setSelectedVariant(v);
+
+  const specs = Object.fromEntries(
+    variants
+      .flatMap((v) => v.attributes ?? [])
+      .map((a) => [a.attribute ?? 'Attribute', a.value])
   );
 
   return (
@@ -76,8 +109,19 @@ export default function ProductDetailPage() {
         <a href="/" className="hover:text-brand-600">Home</a>
         <ChevronRight className="w-3 h-3" />
         <a href="/shop" className="hover:text-brand-600">Shop</a>
+        {product.category?.slug && (
+          <>
+            <ChevronRight className="w-3 h-3" />
+            <a
+              href={`/shop?category=${product.category.slug}`}
+              className="hover:text-brand-600"
+            >
+              {product.category.name}
+            </a>
+          </>
+        )}
         <ChevronRight className="w-3 h-3" />
-        <span className="text-navy-800 font-medium truncate max-w-[200px]">{PRODUCT.name}</span>
+        <span className="text-navy-800 font-medium truncate max-w-[200px]">{product.name}</span>
       </nav>
 
       <div className="grid lg:grid-cols-2 gap-10">
@@ -88,7 +132,15 @@ export default function ProductDetailPage() {
             animate={{ opacity: 1 }}
             className="aspect-square bg-gray-50 rounded-2xl border border-gray-100 flex items-center justify-center mb-4 overflow-hidden relative"
           >
-            <span className="text-gray-300 text-lg">Product Image {selectedImage + 1}</span>
+            {activeImage ? (
+              <img
+                src={activeImage.url}
+                alt={activeImage.alt || product.name}
+                className="w-full h-full object-contain"
+              />
+            ) : (
+              <span className="text-gray-300 text-lg">Product Image</span>
+            )}
             {discount > 0 && (
               <span className="absolute top-4 left-4 bg-red-500 text-white text-sm font-bold px-3 py-1 rounded-xl">
                 -{discount}%
@@ -96,27 +148,31 @@ export default function ProductDetailPage() {
             )}
           </motion.div>
 
-          <div className="flex gap-3">
-            {PRODUCT.images.map((img, i) => (
-              <button
-                key={i}
-                onClick={() => setSelectedImage(i)}
-                className={`w-20 h-20 rounded-xl border-2 flex items-center justify-center transition ${
-                  selectedImage === i
-                    ? 'border-brand-600 bg-brand-50'
-                    : 'border-gray-200 bg-gray-50 hover:border-gray-300'
-                }`}
-              >
-                <span className="text-xs text-gray-400">{i + 1}</span>
-              </button>
-            ))}
-          </div>
+          {hasImages && images.length > 1 && (
+            <div className="flex gap-3">
+              {images.map((img, i) => (
+                <button
+                  key={i}
+                  onClick={() => setSelectedImage(i)}
+                  className={`w-20 h-20 rounded-xl border-2 flex items-center justify-center transition ${
+                    selectedImage === i
+                      ? 'border-brand-600 bg-brand-50'
+                      : 'border-gray-200 bg-gray-50 hover:border-gray-300'
+                  }`}
+                >
+                  <img src={img.url} alt="" className="w-full h-full object-contain" />
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         <div>
-          <p className="text-sm text-brand-600 font-semibold mb-1">{PRODUCT.brand}</p>
+          {product.brand?.name && (
+            <p className="text-sm text-brand-600 font-semibold mb-1">{product.brand.name}</p>
+          )}
           <h1 className="text-2xl md:text-3xl font-bold font-display text-navy-800 leading-tight">
-            {PRODUCT.name}
+            {product.name}
           </h1>
 
           <div className="flex items-center gap-3 mt-4">
@@ -125,53 +181,65 @@ export default function ProductDetailPage() {
                 <Star
                   key={i}
                   className={`w-5 h-5 ${
-                    i < Math.floor(PRODUCT.rating)
+                    i < Math.floor(product.rating)
                       ? 'text-yellow-400 fill-yellow-400'
                       : 'text-gray-200'
                   }`}
                 />
               ))}
             </div>
-            <span className="text-sm font-semibold text-navy-800">{PRODUCT.rating}</span>
-            <span className="text-sm text-gray-400">({PRODUCT.reviewCount.toLocaleString()} reviews)</span>
+            <span className="text-sm font-semibold text-navy-800">{product.rating.toFixed(1)}</span>
+            <span className="text-sm text-gray-400">({product.review_count.toLocaleString()} reviews)</span>
             <span className="text-sm text-gray-400">•</span>
-            <span className="text-sm text-green-600 font-medium">{PRODUCT.sold.toLocaleString()} sold</span>
+            <span className="text-sm text-green-600 font-medium">{product.sales_count.toLocaleString()} sold</span>
           </div>
 
           <div className="flex items-baseline gap-3 mt-6">
             <span className="text-4xl font-bold text-brand-600">
-              ৳{PRODUCT.price.toLocaleString()}
+              ৳{effectivePrice.toLocaleString()}
             </span>
-            <span className="text-xl text-gray-400 line-through">
-              ৳{PRODUCT.originalPrice.toLocaleString()}
-            </span>
-            <span className="bg-red-100 text-red-600 text-sm font-bold px-2 py-0.5 rounded-lg">
-              Save ৳{(PRODUCT.originalPrice - PRODUCT.price).toLocaleString()}
-            </span>
+            {originalPrice && originalPrice > effectivePrice && (
+              <>
+                <span className="text-xl text-gray-400 line-through">
+                  ৳{originalPrice.toLocaleString()}
+                </span>
+                <span className="bg-red-100 text-red-600 text-sm font-bold px-2 py-0.5 rounded-lg">
+                  Save ৳{(originalPrice - effectivePrice).toLocaleString()}
+                </span>
+              </>
+            )}
           </div>
 
-          <p className="text-gray-500 mt-4 leading-relaxed">{PRODUCT.description}</p>
+          {product.short_description && (
+            <p className="text-gray-500 mt-4 leading-relaxed">{product.short_description}</p>
+          )}
 
-          <div className="mt-6">
-            <p className="text-sm font-semibold text-navy-800 mb-2">
-              Color: <span className="text-gray-500 font-normal">{PRODUCT.colors[selectedColor].name}</span>
-            </p>
-            <div className="flex gap-3">
-              {PRODUCT.colors.map((color, i) => (
-                <button
-                  key={i}
-                  onClick={() => setSelectedColor(i)}
-                  className={`w-10 h-10 rounded-full border-2 transition-all ${
-                    selectedColor === i
-                      ? 'border-brand-600 ring-2 ring-brand-200 scale-110'
-                      : 'border-gray-200 hover:scale-105'
-                  }`}
-                  style={{ backgroundColor: color.hex }}
-                  title={color.name}
-                />
-              ))}
+          {colorOptions.length > 0 && (
+            <div className="mt-6">
+              <p className="text-sm font-semibold text-navy-800 mb-2">Color</p>
+              <div className="flex gap-3 flex-wrap">
+                {colorOptions.map((color, i) => {
+                  const active = selectedVariant?.id === color.variantId;
+                  return (
+                    <button
+                      key={color.variantId}
+                      onClick={() => {
+                        const v = variants.find((x) => x.id === color.variantId);
+                        if (v) selectVariant(v);
+                      }}
+                      className={`w-10 h-10 rounded-full border-2 transition-all ${
+                        active
+                          ? 'border-brand-600 ring-2 ring-brand-200 scale-110'
+                          : 'border-gray-200 hover:scale-105'
+                      }`}
+                      style={{ backgroundColor: color.hex }}
+                      title={color.label}
+                    />
+                  );
+                })}
+              </div>
             </div>
-          </div>
+          )}
 
           <div className="mt-6">
             <p className="text-sm font-semibold text-navy-800 mb-2">Quantity</p>
@@ -184,14 +252,14 @@ export default function ProductDetailPage() {
               </button>
               <span className="w-14 text-center font-semibold">{quantity}</span>
               <button
-                onClick={() => setQuantity(Math.min(PRODUCT.stock, quantity + 1))}
+                onClick={() => setQuantity(Math.min(Math.max(product.stock, 1), quantity + 1))}
                 className="p-3 hover:bg-gray-50 transition"
               >
                 <Plus className="w-4 h-4" />
               </button>
             </div>
             <span className="ml-3 text-sm text-gray-400">
-              {PRODUCT.stock} items available
+              {selectedVariant?.stock ?? product.stock} items available
             </span>
           </div>
 
@@ -235,7 +303,7 @@ export default function ProductDetailPage() {
           {([
             { key: 'desc', label: 'Description' },
             { key: 'specs', label: 'Specifications' },
-            { key: 'reviews', label: `Reviews (${PRODUCT.reviewCount})` },
+            { key: 'reviews', label: `Reviews (${product.review_count})` },
           ] as const).map((tab) => (
             <button
               key={tab.key}
@@ -254,54 +322,51 @@ export default function ProductDetailPage() {
         <div className="py-8">
           {activeTab === 'desc' && (
             <div className="max-w-3xl">
-              <p className="text-gray-600 leading-relaxed mb-6">{PRODUCT.description}</p>
-              <h3 className="font-bold text-navy-800 mb-3">Key Features</h3>
-              <ul className="space-y-2">
-                {PRODUCT.features.map((f) => (
-                  <li key={f} className="flex items-start gap-2 text-gray-600">
-                    <Check className="w-5 h-5 text-brand-600 flex-shrink-0 mt-0.5" />
-                    {f}
-                  </li>
-                ))}
-              </ul>
+              <p className="text-gray-600 leading-relaxed mb-6">{product.description}</p>
             </div>
           )}
 
           {activeTab === 'specs' && (
             <div className="max-w-2xl">
-              <table className="w-full">
-                <tbody>
-                  {Object.entries(PRODUCT.specs).map(([key, val], i) => (
-                    <tr key={key} className={i % 2 === 0 ? 'bg-gray-50' : ''}>
-                      <td className="px-4 py-3 text-sm font-medium text-navy-800 w-1/3">{key}</td>
-                      <td className="px-4 py-3 text-sm text-gray-600">{val}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              {Object.keys(specs).length === 0 ? (
+                <p className="text-gray-400 text-sm">No specifications available.</p>
+              ) : (
+                <table className="w-full">
+                  <tbody>
+                    {Object.entries(specs).map(([key, val], i) => (
+                      <tr key={key} className={i % 2 === 0 ? 'bg-gray-50' : ''}>
+                        <td className="px-4 py-3 text-sm font-medium text-navy-800 w-1/3">{key}</td>
+                        <td className="px-4 py-3 text-sm text-gray-600">{val}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
             </div>
           )}
 
           {activeTab === 'reviews' && (
             <ReviewSection
-              productId={PRODUCT.id}
-              avgRating={PRODUCT.rating}
-              reviewCount={PRODUCT.reviewCount}
+              productId={product.id}
+              avgRating={product.rating}
+              reviewCount={product.review_count}
             />
           )}
         </div>
       </div>
 
-      <section className="mt-16 mb-8">
-        <h2 className="text-2xl font-bold font-display text-navy-800 mb-6">
-          You May Also Like
-        </h2>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {RELATED.map((p) => (
-            <ProductCard key={p.id} product={p} />
-          ))}
-        </div>
-      </section>
+      {related.length > 0 && (
+        <section className="mt-16 mb-8">
+          <h2 className="text-2xl font-bold font-display text-navy-800 mb-6">
+            You May Also Like
+          </h2>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {related.map((p) => (
+              <ProductCard key={p.id} product={p} />
+            ))}
+          </div>
+        </section>
+      )}
     </div>
   );
 }

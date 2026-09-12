@@ -2,6 +2,8 @@
 
 import { motion } from 'framer-motion';
 import Link from 'next/link';
+import { useEffect, useState } from 'react';
+import api from '@/lib/api';
 import {
   Smartphone,
   Shirt,
@@ -11,20 +13,83 @@ import {
   Dumbbell,
   BookOpen,
   Gem,
+  Boxes,
 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 
-const categories = [
-  { name: 'Electronics', icon: Smartphone, count: 1240, color: 'bg-blue-50 text-blue-600' },
-  { name: 'Fashion', icon: Shirt, count: 3560, color: 'bg-pink-50 text-pink-600' },
-  { name: 'Home & Living', icon: Home, count: 890, color: 'bg-amber-50 text-amber-600' },
-  { name: 'Health', icon: HeartPulse, count: 456, color: 'bg-red-50 text-red-600' },
-  { name: 'Kids', icon: Baby, count: 780, color: 'bg-purple-50 text-purple-600' },
-  { name: 'Sports', icon: Dumbbell, count: 320, color: 'bg-green-50 text-green-600' },
-  { name: 'Books', icon: BookOpen, count: 1100, color: 'bg-indigo-50 text-indigo-600' },
-  { name: 'Jewelry', icon: Gem, count: 210, color: 'bg-yellow-50 text-yellow-600' },
+const iconMap: Record<string, LucideIcon> = {
+  Smartphone,
+  Shirt,
+  Home,
+  HeartPulse,
+  Baby,
+  Dumbbell,
+  BookOpen,
+  Gem,
+};
+
+interface ApiCategory {
+  id: number;
+  name: string;
+  slug: string;
+  icon?: string | null;
+  products_count: number;
+}
+
+interface CategoryTile {
+  name: string;
+  slug: string;
+  icon: LucideIcon;
+  count: number;
+  color: string;
+}
+
+const FALLBACK: CategoryTile[] = [
+  { name: 'Electronics', slug: 'electronics', icon: Smartphone, count: 0, color: 'bg-blue-50 text-blue-600' },
+  { name: 'Fashion', slug: 'fashion', icon: Shirt, count: 0, color: 'bg-pink-50 text-pink-600' },
+  { name: 'Home & Living', slug: 'home-living', icon: Home, count: 0, color: 'bg-amber-50 text-amber-600' },
+  { name: 'Health', slug: 'health', icon: HeartPulse, count: 0, color: 'bg-red-50 text-red-600' },
+  { name: 'Kids', slug: 'kids', icon: Baby, count: 0, color: 'bg-purple-50 text-purple-600' },
+  { name: 'Sports', slug: 'sports', icon: Dumbbell, count: 0, color: 'bg-green-50 text-green-600' },
+  { name: 'Books', slug: 'books', icon: BookOpen, count: 0, color: 'bg-indigo-50 text-indigo-600' },
+  { name: 'Jewelry', slug: 'jewelry', icon: Gem, count: 0, color: 'bg-yellow-50 text-yellow-600' },
+];
+
+const colors = [
+  'bg-blue-50 text-blue-600',
+  'bg-pink-50 text-pink-600',
+  'bg-amber-50 text-amber-600',
+  'bg-red-50 text-red-600',
+  'bg-purple-50 text-purple-600',
+  'bg-green-50 text-green-600',
+  'bg-indigo-50 text-indigo-600',
+  'bg-yellow-50 text-yellow-600',
 ];
 
 export default function FeaturedCategories() {
+  const [categories, setCategories] = useState<CategoryTile[]>([]);
+
+  useEffect(() => {
+    api
+      .get('/categories')
+      .then(({ data }) => {
+        const list: ApiCategory[] = data.data ?? [];
+        if (!list.length) return;
+        setCategories(
+          list.map((cat, i) => ({
+            name: cat.name,
+            slug: cat.slug,
+            icon: (cat.icon && iconMap[cat.icon]) || Boxes,
+            count: cat.products_count,
+            color: colors[i % colors.length],
+          }))
+        );
+      })
+      .catch(() => {});
+  }, []);
+
+  const shown = categories.length ? categories : FALLBACK;
+
   return (
     <section className="py-16 bg-gray-50">
       <div className="max-w-7xl mx-auto px-4">
@@ -45,16 +110,16 @@ export default function FeaturedCategories() {
 
         {/* Category Grid */}
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-8 gap-4">
-          {categories.map((cat, i) => (
+          {shown.map((cat, i) => (
             <motion.div
-              key={cat.name}
+              key={cat.slug}
               initial={{ opacity: 0, y: 20 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ delay: i * 0.05 }}
             >
               <Link
-                href={`/categories/${cat.name.toLowerCase()}`}
+                href={`/shop?category=${cat.slug}`}
                 className="group flex flex-col items-center p-4 bg-white rounded-2xl border border-gray-100 hover:border-brand-200 hover:shadow-lg hover:shadow-brand-100/50 transition-all duration-300"
               >
                 <div

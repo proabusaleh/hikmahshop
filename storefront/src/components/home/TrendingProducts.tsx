@@ -1,25 +1,41 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { ArrowRight, Flame } from 'lucide-react';
 import ProductCard from '@/components/shared/ProductCard';
-
-const tabs = ['All', 'Electronics', 'Fashion', 'Home', 'Beauty'];
-
-const products = [
-  { id: 10, name: 'Noise Cancelling Headphones', price: 4599, originalPrice: 7999, image: '', rating: 4.8 },
-  { id: 11, name: 'Cotton Casual T-Shirt', price: 599, originalPrice: 999, image: '', rating: 4.3 },
-  { id: 12, name: 'LED Desk Lamp Smart', price: 1299, image: '', rating: 4.6, isNew: true },
-  { id: 13, name: 'Organic Face Serum', price: 899, originalPrice: 1299, image: '', rating: 4.5 },
-  { id: 14, name: 'Mechanical Keyboard RGB', price: 3299, image: '', rating: 4.7, isNew: true },
-  { id: 15, name: 'Yoga Mat Premium', price: 799, originalPrice: 1199, image: '', rating: 4.4 },
-  { id: 16, name: 'Portable Power Bank 20K', price: 1599, originalPrice: 2499, image: '', rating: 4.6 },
-  { id: 17, name: 'Denim Jacket Classic', price: 2199, image: '', rating: 4.2 },
-];
+import api from '@/lib/api';
+import { toCardProduct } from '@/lib/products';
+import type { ApiProduct, CardProduct } from '@/lib/products';
 
 export default function TrendingProducts() {
+  const [products, setProducts] = useState<CardProduct[]>([]);
+  const [categories, setCategories] = useState<string[]>(['All']);
   const [activeTab, setActiveTab] = useState('All');
+
+  useEffect(() => {
+    api
+      .get('/products', { params: { trending: 1, per_page: 12 } })
+      .then(({ data }) => {
+        const list: ApiProduct[] = data.data ?? [];
+        if (!list.length) return;
+        setProducts(list.map(toCardProduct));
+        const cats = Array.from(
+          new Set(list.map((p) => p.category?.name).filter(Boolean) as string[])
+        );
+        setCategories(['All', ...cats]);
+      })
+      .catch(() => {});
+  }, []);
+
+  const filtered =
+    activeTab === 'All'
+      ? products
+      : products.filter((p) => p.categoryName === activeTab);
+
+  const shown = filtered.slice(0, 8);
+
+  if (!products.length) return null;
 
   return (
     <section className="py-16 bg-gray-50">
@@ -35,7 +51,7 @@ export default function TrendingProducts() {
 
           {/* Tabs */}
           <div className="flex gap-2 overflow-x-auto pb-1">
-            {tabs.map((tab) => (
+            {categories.map((tab) => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
@@ -53,7 +69,7 @@ export default function TrendingProducts() {
 
         {/* Products */}
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6">
-          {products.map((product, i) => (
+          {shown.map((product, i) => (
             <motion.div
               key={product.id}
               initial={{ opacity: 0, y: 20 }}
@@ -68,7 +84,7 @@ export default function TrendingProducts() {
 
         <div className="text-center mt-10">
           <a
-            href="/shop"
+            href="/shop?trending=1"
             className="inline-flex items-center gap-2 px-8 py-3 border-2 border-brand-600 text-brand-600 rounded-xl font-semibold hover:bg-brand-600 hover:text-white transition-all"
           >
             View All Products <ArrowRight className="w-4 h-4" />

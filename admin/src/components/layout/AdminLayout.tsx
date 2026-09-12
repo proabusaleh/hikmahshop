@@ -23,19 +23,19 @@ import {
 
 const menuItems = [
   { icon: LayoutDashboard, label: 'Dashboard', href: '/', active: true },
-  { icon: ShoppingCart, label: 'Orders', href: '/orders', active: false },
-  { icon: Package, label: 'Products', href: '/products', active: false },
-  { icon: Users, label: 'Customers', href: '/customers', active: false },
-  { icon: CreditCard, label: 'Payments', href: '/payments', active: false },
-  { icon: Tag, label: 'Coupons', href: '/coupons', active: false },
+  { icon: ShoppingCart, label: 'Orders', href: '/admin/orders', active: false },
+  { icon: Package, label: 'Products', href: '/admin/products', active: false },
+  { icon: Users, label: 'Customers', href: '/admin/customers', active: false },
+  { icon: CreditCard, label: 'Payments', href: '/admin/payments', active: false },
+  { icon: Tag, label: 'Coupons', href: '/admin/coupons', active: false },
   { icon: Star, label: 'Reviews', href: '/admin/reviews', active: false },
   { icon: FileText, label: 'Blog', href: '/admin/blog', active: false },
   { icon: Globe, label: 'CMS', href: '/admin/cms', active: false },
-  { icon: Package, label: 'Campaigns', href: '/campaigns', active: false },
-  { icon: Truck, label: 'Delivery', href: '/delivery', active: false },
+  { icon: Package, label: 'Campaigns', href: '/admin/campaigns', active: false },
+  { icon: Truck, label: 'Delivery', href: '/admin/delivery', active: false },
   { icon: Package, label: 'Inventory', href: '/admin/inventory', active: false },
   { icon: BarChart3, label: 'Analytics', href: '/admin/analytics', active: false },
-  { icon: Settings, label: 'Settings', href: '/settings', active: false },
+  { icon: Settings, label: 'Settings', href: '/admin/settings', active: false },
 ];
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {

@@ -1,11 +1,38 @@
 import Link from 'next/link';
 import { Facebook, Instagram, Youtube, Phone, Mail, MapPin } from 'lucide-react';
 
-const footerLinks = {
-  'Quick Links': ['Home', 'Shop', 'Deals', 'New Arrivals', 'Best Sellers'],
-  'Customer Service': ['Contact Us', 'FAQ', 'Shipping Info', 'Returns', 'Track Order'],
-  'About': ['About HikmahShop', 'Careers', 'Blog', 'Privacy Policy', 'Terms of Service'],
-};
+const footerLinks: { title: string; links: { label: string; href: string }[] }[] = [
+  {
+    title: 'Quick Links',
+    links: [
+      { label: 'Home', href: '/' },
+      { label: 'Shop', href: '/shop' },
+      { label: 'Deals', href: '/shop?flash_sale=1' },
+      { label: 'New Arrivals', href: '/shop?new_arrival=1' },
+      { label: 'Best Sellers', href: '/shop?best_seller=1' },
+    ],
+  },
+  {
+    title: 'Customer Service',
+    links: [
+      { label: 'Contact Us', href: '/contact' },
+      { label: 'FAQ', href: '/faq' },
+      { label: 'Shipping Info', href: '/shipping-policy' },
+      { label: 'Returns', href: '/return-policy' },
+      { label: 'Track Order', href: '/account/orders' },
+    ],
+  },
+  {
+    title: 'About',
+    links: [
+      { label: 'About HikmahShop', href: '/about' },
+      { label: 'Careers', href: '/about' },
+      { label: 'Blog', href: '/blog' },
+      { label: 'Privacy Policy', href: '/privacy-policy' },
+      { label: 'Terms of Service', href: '/terms-of-service' },
+    ],
+  },
+];
 
 export default function Footer() {
   return (
@@ -51,18 +78,18 @@ export default function Footer() {
           </div>
 
           {/* Link Columns */}
-          {Object.entries(footerLinks).map(([title, links]) => (
-            <div key={title}>
-              <h4 className="text-white font-bold mb-4">{title}</h4>
+          {footerLinks.map((col) => (
+            <div key={col.title}>
+              <h4 className="text-white font-bold mb-4">{col.title}</h4>
               <ul className="space-y-2.5">
-                {links.map((link) => (
-                  <li key={link}>
-                    <a
-                      href="#"
+                {col.links.map((link) => (
+                  <li key={link.label}>
+                    <Link
+                      href={link.href}
                       className="text-sm text-gray-400 hover:text-brand-400 transition"
                     >
-                      {link}
-                    </a>
+                      {link.label}
+                    </Link>
                   </li>
                 ))}
               </ul>
