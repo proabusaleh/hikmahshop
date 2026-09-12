@@ -1,0 +1,18 @@
+# Dependencies
+api/vendor/
+storefront/node_modules/
+admin/node_modules/
+
+# Environment
+api/.env
+storefront/.env.local
+admin/.env.local
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
